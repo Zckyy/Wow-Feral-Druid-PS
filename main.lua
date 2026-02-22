@@ -33,6 +33,7 @@ local ENERGY_COST_PRIMAL_WRATH = 25
 local ENERGY_COST_FERAL_OR_FRANTIC_FRENZY = 25
 --Ferocious Bite costs 25, but we hold for 50 to allow the +25 energy consume for 100% damage.
 local ENERGY_THRESHOLD_FEROCIOUS_BITE = 50
+local ENERGY_COST_FEROCIOUS_BITE = 25
 
 -- If we had to leave Cat Form to break a root and Auto Cat Form is disabled,
 -- we'll re-enter Cat Form once the root is gone.
@@ -221,12 +222,27 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
     end
 
     --Berserk - use immediately when ready (only if keybind is enabled)
-    if use_berserk and berserk_valid and me:has_buff(BUFFS.TIGERS_FURY) and SPELLS.BERSERK:cast_safe(nil, "Berserk") then
+    if use_berserk and berserk_valid and SPELLS.BERSERK:cooldown_up() and me:has_buff(BUFFS.TIGERS_FURY) and SPELLS.BERSERK:cast_safe(nil, "Berserk") then
         return true
     end
 
     --Convoke the Spirits - use immediately when ready (only if keybind is enabled)
-    if use_convoke and convoke_valid and me:has_buff(BUFFS.TIGERS_FURY) and target_distance <= 8 then
+    if use_convoke and convoke_valid and SPELLS.CONVOKE_THE_SPIRITS:cooldown_up() and me:has_buff(BUFFS.TIGERS_FURY) and target_distance <= 8 then
+        --Convoke awards combo points rapidly; avoid entering Convoke while capped.
+        if combo_points == 5 then
+            if me:has_buff(BUFFS.APEX_PREDATORS_CRAVING) and SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ferocious Bite (Pre-Convoke/Apex)") then
+                return true
+            end
+
+            if needs_rip(target) and energy >= ENERGY_COST_RIP and SPELLS.RIP:cast_safe(target, "Rip (Pre-Convoke)") then
+                return true
+            end
+
+            if energy >= ENERGY_COST_FEROCIOUS_BITE and SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ferocious Bite (Pre-Convoke)") then
+                return true
+            end
+        end
+
         if SPELLS.CONVOKE_THE_SPIRITS:cast_safe(nil, "Convoke") then
             return true
         end
@@ -381,6 +397,26 @@ local function aoe(me, target, enemies_melee, use_berserk, use_convoke, use_fren
 
     --Convoke the Spirits - use immediately when ready (only if keybind is enabled)
     if use_convoke and convoke_valid and target_distance <= 8 then
+        --Convoke awards combo points rapidly; avoid entering Convoke while capped.
+        if combo_points == 5 then
+            if me:has_buff(BUFFS.APEX_PREDATORS_CRAVING) and SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ferocious Bite (Pre-Convoke/Apex)") then
+                return true
+            end
+
+            --Prefer Primal Wrath over Rip in AoE.
+            if has_primal_wrath and needs_rip(target) and target_distance <= 10 and energy >= ENERGY_COST_PRIMAL_WRATH and SPELLS.PRIMAL_WRATH:cast_safe(target, "Primal Wrath (Pre-Convoke)") then
+                return true
+            end
+
+            if (not has_primal_wrath) and needs_rip(target) and energy >= ENERGY_COST_RIP and SPELLS.RIP:cast_safe(target, "Rip (Pre-Convoke)") then
+                return true
+            end
+
+            if energy >= ENERGY_COST_FEROCIOUS_BITE and SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ferocious Bite (Pre-Convoke)") then
+                return true
+            end
+        end
+
         if SPELLS.CONVOKE_THE_SPIRITS:cast_safe(nil, "Convoke") then
             return true
         end
