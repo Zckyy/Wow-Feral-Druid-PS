@@ -510,15 +510,10 @@ local function aoe(me, target, enemies_melee, use_berserk, use_convoke, use_fren
     end
 
     --Swipe if distance<=8 and active_enemies>3 (main builder in aoe)
-    if target_distance <= 8 and active_enemies > 3 and combo_points < 5 then
+    if target_distance <= 8 and active_enemies >= 2 and combo_points < 5 then
         if (has_clearcasting_feral or energy >= ENERGY_COST_SWIPE) and SPELLS.SWIPE:cast_safe(target, "Swipe (AoE)") then
             return true
         end
-    end
-
-    --Shred
-    if combo_points < 5 and (has_clearcasting_feral or energy >= ENERGY_COST_SHRED) and SPELLS.SHRED:cast_safe(target, "Shred") then
-        return true
     end
 
     --Moonfire if talent lunar_inspiration and distance>15
