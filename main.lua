@@ -31,6 +31,7 @@ local recat_pending = false
 --Cache frequently used spell IDs (avoids repeated method calls in hot paths)
 local ID_MARK_OF_THE_WILD = SPELLS.MARK_OF_THE_WILD:id()
 local ID_CAT_FORM = SPELLS.CAT_FORM:id()
+local ID_TRAVEL_FORM = SPELLS.TRAVEL_FORM:id()
 local ID_PROWL = SPELLS.PROWL:id()
 
 --Returns the time in milliseconds since the last dismount
@@ -505,8 +506,9 @@ core.register_on_update_callback(function()
         energy_below_30_time_ms = game_time_ms
     end
 
-    --Update the local player's last mounted time
-    if me:is_mounted() then
+    --Update the local player's last mounted/travel-form time.
+    -- Travel Form (including flight) must behave like mounting: no rotation/utility actions.
+    if me:is_mounted() or me:is_flying() or me:has_buff(ID_TRAVEL_FORM) then
         last_mounted_time_ms = game_time_ms
         return
     end
