@@ -228,6 +228,44 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
         if energy >= ENERGY_COST_RAKE and SPELLS.RAKE:cast_safe(target, "Rake (Prowl)") then
             return true
         end
+
+        -- If we're stealthed but can't afford Rake yet, don't break the opener sequence.
+        return false
+    end
+
+    -- Opener: if the target has no Rip, force the priority:
+    -- Shred to 5 CP -> Berserk + Tiger's Fury -> Rip -> Convoke
+    if not target:has_debuff(BUFFS.RIP) then
+        if combo_points < 5 then
+            if (has_clearcasting_feral or energy >= ENERGY_COST_SHRED) and SPELLS.SHRED:cast_safe(target, "Shred (Build 5 CP)") then
+                return true
+            end
+            return false
+        end
+
+        if use_berserk and berserk_valid and SPELLS.BERSERK:cooldown_up() then
+            if SPELLS.BERSERK:cast_safe(nil, "Berserk (Pre-Rip)") then
+                return true
+            end
+        end
+
+        if tigers_fury_ready and (not has_tigers_fury) then
+            if SPELLS.TIGERS_FURY:cast_safe(nil, "Tiger's Fury (Pre-Rip)") then
+                return true
+            end
+        end
+
+        if energy >= ENERGY_COST_RIP and SPELLS.RIP:cast_safe(target, "Rip (Apply)") then
+            return true
+        end
+
+        if use_convoke and convoke_valid and SPELLS.CONVOKE_THE_SPIRITS:cooldown_up() then
+            if SPELLS.CONVOKE_THE_SPIRITS:cast_safe(nil, "Convoke (Post-Rip)") then
+                return true
+            end
+        end
+
+        return false
     end
 
     --Cooldowns: use on cooldown (no manual syncing/holding).
@@ -239,14 +277,14 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
     end
 
     --Berserk - use immediately when ready (only if keybind is enabled)
-    if use_berserk and berserk_valid and SPELLS.BERSERK:cooldown_up() and me:has_buff(BUFFS.TIGERS_FURY) and SPELLS.BERSERK:cast_safe(nil, "Berserk") then
+    if use_berserk and berserk_valid and SPELLS.BERSERK:cooldown_up() and SPELLS.BERSERK:cast_safe(nil, "Berserk") then
         return true
     end
 
     --Convoke the Spirits - use immediately when ready (only if keybind is enabled)
     if use_convoke and convoke_valid and SPELLS.CONVOKE_THE_SPIRITS:cooldown_up() and me:has_buff(BUFFS.TIGERS_FURY) then
         --Convoke awards combo points rapidly; avoid entering Convoke while capped.
-        if combo_points == 5 then
+        if combo_points >= 3 then
             if me:has_buff(BUFFS.APEX_PREDATORS_CRAVING) and SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ferocious Bite (Pre-Convoke/Apex)") then
                 return true
             end
