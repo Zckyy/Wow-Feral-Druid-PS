@@ -71,6 +71,10 @@ local menu =
     AUTO_MARK_OF_THE_WILD_CHECK = m.checkbox(true, id("auto_mark_wild")),
     AUTO_CAT_FORM_CHECK = m.checkbox(true, id("auto_cat_form")),
     AUTO_PROWL_CHECK = m.checkbox(true, id("auto_prowl")),
+
+    --Visuals
+    VISUALS_TREE = m.tree_node(),
+    DRAW_TS_LINE_CHECK = m.checkbox(true, id("draw_target_line")),
 }
 
 ---@alias menu_validator_fn fun(value: number): boolean
@@ -183,6 +187,10 @@ core.register_on_render_menu_callback(function()
             M.AUTO_MARK_OF_THE_WILD_CHECK:render("Auto Mark of the Wild", "Automatically cast Mark of the Wild")
             M.AUTO_CAT_FORM_CHECK:render("Auto Cat Form", "Automatically enter Cat Form")
             M.AUTO_PROWL_CHECK:render("Auto Prowl (OOC)", "Automatically use Prowl out of combat")
+        end)
+
+        M.VISUALS_TREE:render("Visuals", function()
+            M.DRAW_TS_LINE_CHECK:render("Draw Target Line", "Draw a line from you to the target")
         end)
     end)
 end)

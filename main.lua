@@ -3,6 +3,9 @@ local SPELLS = require("extra/spells")
 local menu = require("extra/menu")
 local izi = require("common/izi_sdk")
 local enums = require("common/enums")
+local color = require("common/color")
+---@type target_selector
+local target_selector = require("common/modules/target_selector")
 
 --Define our constants
 local BUFFS = enums.buff_db
@@ -213,7 +216,7 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
     -- Range gate:
     -- Many melee abilities (Rake/Shred/Rip/Bite) will attempt to enable auto-attack even if the cast fails.
     -- If the target selector returns a valid target outside melee, avoid attempting melee spells.
-    if target_distance > 8 then
+    if target_distance > 6 then
         if has_lunar_inspiration and target_distance <= 40 then
             local moonfire_ok = SPELLS.MOONFIRE:cast_safe(target, "Moonfire (Range)")
             return moonfire_ok == true
@@ -338,7 +341,7 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
     end
 
     --Rake if needs refreshing (pandemic)
-    if needs_rake(target) and combo_points < 5 then
+    if needs_rake(target) and combo_points < 5 and target_distance <= 6 then
         if energy >= ENERGY_COST_RAKE and SPELLS.RAKE:cast_safe(target, "Rake") then
             return true
         end
@@ -388,7 +391,7 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
     -- Range gate: avoid firing melee actions on out-of-range targets.
     if target_distance > 8 then
         -- Primal Wrath is a 15y AoE finisher, so allow spending CPs even when outside melee.
-        if has_primal_wrath and rip_needed_any and target_distance <= 15 and energy >= ENERGY_COST_PRIMAL_WRATH then
+        if has_primal_wrath and rip_needed_any and target_distance <= 20 and energy >= ENERGY_COST_PRIMAL_WRATH then
             if SPELLS.PRIMAL_WRATH:cast_safe(target, "Primal Wrath (15y)") then
                 return true
             end
@@ -411,7 +414,7 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
     --Range-gate AoE builders: if we still need to apply/refresh Rake.
     --do not use Swipe (8y) to start combat while we're outside Rake range (~5y).
     --This ensures we open with Rake for the stun/bonus damage.
-    if needs_rake(target) and target_distance > 5 then
+    if needs_rake(target) and target_distance > 6 then
         return false
     end
 
@@ -445,7 +448,7 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
     end
 
     --Convoke the Spirits - use immediately when ready (only if keybind is enabled)
-    if use_convoke and convoke_valid and target_distance <= 8 then
+    if use_convoke and convoke_valid and target_distance <= 5 then
         --Convoke awards combo points rapidly; avoid entering Convoke while capped.
         if combo_points == 5 then
             if me:has_buff(BUFFS.APEX_PREDATORS_CRAVING) and SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ferocious Bite (Pre-Convoke/Apex)") then
@@ -472,7 +475,7 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
     end
 
     --Chomp if energy < 30% or within 2 seconds of dropping below 30%
-    if is_chomp_available() then
+    if is_chomp_available() and target_distance <= 8 then
         if SPELLS.CHOMP:cast_safe(target, "Chomp") then
             return true
         end
@@ -501,7 +504,7 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
     end
 
     --Ferocious Bite if apex_predators_craving buff is up
-    if me:has_buff(BUFFS.APEX_PREDATORS_CRAVING) then
+    if me:has_buff(BUFFS.APEX_PREDATORS_CRAVING) and target_distance <= 8 then
         if SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ferocious Bite (Apex)") then
             return true
         end
@@ -545,7 +548,7 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
     end
 
     --Rake if needs refreshing (pandemic)
-    if needs_rake(target) then
+    if needs_rake(target) and target_distance <= 6 then
         if energy >= ENERGY_COST_RAKE and SPELLS.RAKE:cast_safe(target, "Rake") then
             return true
         end
@@ -665,7 +668,7 @@ core.register_on_update_callback(function()
     local has_primal_wrath = SPELLS.PRIMAL_WRATH:is_learned()
 
     --Enemy counts: Primal Wrath is 15y, so treat multi-target within 15y as AoE when learned.
-    local enemies_melee = me:get_enemies_in_melee_range(10)
+    local enemies_melee = izi.enemies(15)
     local enemies_primal_wrath_range = enemies_melee
     if has_primal_wrath then
         enemies_primal_wrath_range = me:get_enemies_in_melee_range(15)
@@ -679,7 +682,7 @@ core.register_on_update_callback(function()
     end
 
     --Get target selector targets
-    local targets = izi.get_ts_targets()
+    local targets = target_selector:get_targets()
 
     --Iterate over targets and run rotation logic
     for i = 1, #targets do
@@ -724,4 +727,59 @@ core.register_on_update_callback(function()
 
         ::continue::
     end
+end)
+
+-- Draw a line from local player to the first TS target.
+-- Uses 2D line rendering (screen space) via world->screen conversion.
+core.register_on_render_callback(function()
+    if not menu:is_enabled() then
+        return
+    end
+
+    if not menu.DRAW_TS_LINE_CHECK:get_state() then
+        return
+    end
+
+    local me = izi.me()
+    if not (me and me.is_valid and me:is_valid()) then
+        return
+    end
+
+    --Get target selector targets
+    local targets = izi.get_ts_targets() -- IZI target_selector
+    --local targets = target_selector:get_targets() -- Project Sylvanas Target Selector
+    local target = targets and targets[1] or nil
+    if not (target and target.is_valid and target:is_valid()) then
+        return
+    end
+
+    if target.is_dead and target:is_dead() then
+        return
+    end
+
+    if target.is_visible and (not target:is_visible()) then
+        return
+    end
+
+    if not (me.get_position and target.get_position) then
+        return
+    end
+
+    local me_pos_3d = me:get_position()
+    local target_pos_3d = target:get_position()
+
+    local me_pos_2d = core.graphics.w2s(me_pos_3d)
+    local target_pos_2d = core.graphics.w2s(target_pos_3d)
+    if not (me_pos_2d and target_pos_2d) then
+        return
+    end
+
+    core.graphics.line_2d(me_pos_2d, target_pos_2d, color.cyan(50), 2)
+    --core.graphics.circle_3d(target_pos_3d, 0.5, color.cyan(220))
+
+    -- text to print targets hp
+    local range = me:distance_to(target)
+    --local hp_text = string.format("%.1f%%", target:get_health_percentage())
+    --core.graphics.text_3d(hp_text, target_pos_3d, 25, color.green_pale(255), true, 0)
+    core.graphics.text_3d(string.format("%.1f y", range), target_pos_3d, 30, color.white(255), true, 0)
 end)
