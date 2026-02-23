@@ -460,11 +460,11 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
             end
 
             --Prefer Primal Wrath over Rip in AoE.
-            if has_primal_wrath and rip_needed_any and target_distance <= 15 and energy >= ENERGY_COST_PRIMAL_WRATH and SPELLS.PRIMAL_WRATH:cast(target, "Primal Wrath (Pre-Convoke)") then
+            if has_primal_wrath and rip_needed_any and target_distance <= 15 and energy >= ENERGY_COST_PRIMAL_WRATH and SPELLS.PRIMAL_WRATH:cast_safe(target, "Primal Wrath (Pre-Convoke)") then
                 return true
             end
 
-            if (not has_primal_wrath) and needs_rip(target) and energy >= ENERGY_COST_RIP and SPELLS.RIP:cast_safe(target, "Rip (Pre-Convoke)") then
+            if not has_primal_wrath and needs_rip(target) and energy >= ENERGY_COST_RIP and SPELLS.RIP:cast_safe(target, "Rip (Pre-Convoke) (aoe)") then
                 return true
             end
 
@@ -481,8 +481,7 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
     --Ravage proc: spend CPs with Ferocious Bite as soon as possible (even at 25 energy).
     --This intentionally overrides Primal Wrath/Rip maintenance while the proc is active.
     if has_ravage_proc and combo_points >= 5 and energy >= ENERGY_COST_FEROCIOUS_BITE then
-        izi.print("Ravage proc active - spending with Ferocious Bite")
-        if SPELLS.FEROCIOUS_BITE:cast(target, "Ravage (AoE)") then
+        if SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ravage (AoE)") then
             return true
         end
     end
@@ -497,7 +496,7 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
     --Primal Wrath if learned and any nearby enemy needs Rip (pandemic) and combo_points>=5 and distance<=15
     --Prefer Primal Wrath over Rip in AoE since it applies Rip to all nearby enemies
     if has_primal_wrath and rip_needed_any and combo_points >= 5 and target_distance <= 15 then
-        if energy >= ENERGY_COST_PRIMAL_WRATH and SPELLS.PRIMAL_WRATH:cast(target, "Primal Wrath (AoE)") then
+        if energy >= ENERGY_COST_PRIMAL_WRATH and SPELLS.PRIMAL_WRATH:cast_safe(target, "Primal Wrath (AoE)") then
             return true
         end
     end
