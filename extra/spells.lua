@@ -40,6 +40,7 @@ local SPELLS =
     --Passives (these are just used to check for talents)
     LUNAR_INSPIRATION = spell(155580),
     RAVAGE = spell(441583),
+    RAVAGE_BUFF = spell(441585),
 
     -- Druid Forms
     CAT_FORM = spell(768),

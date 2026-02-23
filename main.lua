@@ -47,6 +47,7 @@ local ID_MARK_OF_THE_WILD = SPELLS.MARK_OF_THE_WILD:id()
 local ID_CAT_FORM = SPELLS.CAT_FORM:id()
 local ID_TRAVEL_FORM = SPELLS.TRAVEL_FORM:id()
 local ID_PROWL = SPELLS.PROWL:id()
+local ID_RAVAGE_BUFF = SPELLS.RAVAGE_BUFF:id()
 
 --Returns the time in milliseconds since the last dismount
 ---@return number time_since_last_dismount_ms
@@ -381,6 +382,10 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
     local active_enemies = #enemies_melee
     local has_clearcasting_feral = me:has_buff(BUFFS.CLEARCASTING_FERAL)
 
+    -- Ravage is a Ferocious Bite replacement proc. Prefer consuming it over other finishers.
+    -- Some environments key this aura under `buff_db.RAVAGE`, but also keep a direct-ID fallback.
+    local has_ravage_proc = me:has_buff(BUFFS.RAVAGE) or me:has_buff(ID_RAVAGE_BUFF)
+
     -- Primal Wrath applies/refreshes Rip to all enemies within 15y.
     -- If any enemy in range needs Rip, prefer Primal Wrath as our finisher spend.
     local rip_needed_any = false
@@ -470,6 +475,14 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
         end
 
         if SPELLS.CONVOKE_THE_SPIRITS:cast_safe(nil, "Convoke") then
+            return true
+        end
+    end
+
+    --Ravage proc: spend CPs with Ferocious Bite as soon as possible (even at 25 energy).
+    --This intentionally overrides Primal Wrath/Rip maintenance while the proc is active.
+    if has_ravage_proc and combo_points >= 5 and target_distance <= 6 and energy >= ENERGY_COST_FEROCIOUS_BITE then
+        if SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ravage (AoE)") then
             return true
         end
     end
