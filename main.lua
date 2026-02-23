@@ -104,6 +104,19 @@ local function needs_rip(target)
     return remaining <= RIP_PANDEMIC_THRESHOLD_SEC
 end
 
+---Checks if any enemy in the list needs Rip applied/refreshed (pandemic window)
+---@param enemies game_object[]
+---@return boolean
+local function any_enemy_needs_rip(enemies)
+    for i = 1, #enemies do
+        local enemy = enemies[i]
+        if enemy and enemy.is_valid and enemy:is_valid() and needs_rip(enemy) then
+            return true
+        end
+    end
+    return false
+end
+
 ---Checks if Moonfire needs to be applied or refreshed (pandemic window)
 ---@param target game_object
 ---@return boolean needs_moonfire
@@ -197,6 +210,17 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
     local target_distance = me:distance_to(target)
     local has_clearcasting_feral = me:has_buff(BUFFS.CLEARCASTING_FERAL)
 
+    -- Range gate:
+    -- Many melee abilities (Rake/Shred/Rip/Bite) will attempt to enable auto-attack even if the cast fails.
+    -- If the target selector returns a valid target outside melee, avoid attempting melee spells.
+    if target_distance > 8 then
+        if has_lunar_inspiration and target_distance <= 40 then
+            local moonfire_ok = SPELLS.MOONFIRE:cast_safe(target, "Moonfire (Range)")
+            return moonfire_ok == true
+        end
+        return false
+    end
+
     --Check Tiger's Fury status for cooldown syncing
     local has_tigers_fury = me:has_buff(BUFFS.TIGERS_FURY)
     local tigers_fury_ready = SPELLS.TIGERS_FURY:cooldown_up()
@@ -208,7 +232,7 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
 
     --Rake if prowl buff is up
     if me:has_buff(ID_PROWL) then
-        if energy >= ENERGY_COST_RAKE and SPELLS.RAKE:cast_safe(target, "Rake (Prowl)") then
+        if energy >= ENERGY_COST_RAKE and SPELLS.RAKE:cast(target, "Rake (Prowl)") then
             return true
         end
     end
@@ -332,13 +356,6 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
         return true
     end
 
-    --Moonfire if talent lunar_inspiration and distance>15
-    if has_lunar_inspiration and target_distance > 15 then
-        if SPELLS.MOONFIRE:cast_safe(target, "Moonfire (Range)") then
-            return true
-        end
-    end
-
     return false
 end
 
@@ -346,21 +363,53 @@ end
 ---@param me game_object
 ---@param target game_object
 ---@param enemies_melee game_object[]
+---@param enemies_primal_wrath_range game_object[]
 ---@param use_berserk boolean
 ---@param use_convoke boolean
 ---@param use_frenzy boolean
 ---@param has_lunar_inspiration boolean
 ---@param has_frantic_frenzy boolean
 ---@return boolean
-local function aoe(me, target, enemies_melee, use_berserk, use_convoke, use_frenzy, has_lunar_inspiration,
+local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_berserk, use_convoke, use_frenzy,
+                   has_lunar_inspiration,
                    has_frantic_frenzy, has_primal_wrath)
     local ttd = izi.get_time_to_die_global()
     local target_distance = me:distance_to(target)
     local active_enemies = #enemies_melee
     local has_clearcasting_feral = me:has_buff(BUFFS.CLEARCASTING_FERAL)
 
-    --Range-gate AoE builders: if we still need to apply/refresh Rake, do not
-    --use Swipe (8y) to start combat while we're outside Rake range (~5y).
+    -- Primal Wrath applies/refreshes Rip to all enemies within 15y.
+    -- If any enemy in range needs Rip, prefer Primal Wrath as our finisher spend.
+    local rip_needed_any = false
+    if has_primal_wrath and combo_points >= 5 then
+        rip_needed_any = any_enemy_needs_rip(enemies_primal_wrath_range)
+    end
+
+    -- Range gate: avoid firing melee actions on out-of-range targets.
+    if target_distance > 8 then
+        -- Primal Wrath is a 15y AoE finisher, so allow spending CPs even when outside melee.
+        if has_primal_wrath and rip_needed_any and target_distance <= 15 and energy >= ENERGY_COST_PRIMAL_WRATH then
+            if SPELLS.PRIMAL_WRATH:cast_safe(target, "Primal Wrath (15y)") then
+                return true
+            end
+        end
+
+        -- Swipe is our main AoE builder, and it has a large radius (15y), so allow using Swipe on targets up to 8y even in AoE.
+        if target_distance <= 15 and active_enemies >= 2 and combo_points < 5 then
+            if (has_clearcasting_feral or energy >= ENERGY_COST_SWIPE) and SPELLS.SWIPE:cast_safe(target, "Swipe (AoE Range)") then
+                return true
+            end
+        end
+
+        if has_lunar_inspiration and target_distance <= 40 then
+            local moonfire_ok = SPELLS.MOONFIRE:cast_safe(target, "Moonfire (Range)")
+            return moonfire_ok == true
+        end
+        return false
+    end
+
+    --Range-gate AoE builders: if we still need to apply/refresh Rake.
+    --do not use Swipe (8y) to start combat while we're outside Rake range (~5y).
     --This ensures we open with Rake for the stun/bonus damage.
     if needs_rake(target) and target_distance > 5 then
         return false
@@ -404,7 +453,7 @@ local function aoe(me, target, enemies_melee, use_berserk, use_convoke, use_fren
             end
 
             --Prefer Primal Wrath over Rip in AoE.
-            if has_primal_wrath and needs_rip(target) and target_distance <= 10 and energy >= ENERGY_COST_PRIMAL_WRATH and SPELLS.PRIMAL_WRATH:cast_safe(target, "Primal Wrath (Pre-Convoke)") then
+            if has_primal_wrath and rip_needed_any and target_distance <= 15 and energy >= ENERGY_COST_PRIMAL_WRATH and SPELLS.PRIMAL_WRATH:cast_safe(target, "Primal Wrath (Pre-Convoke)") then
                 return true
             end
 
@@ -429,9 +478,9 @@ local function aoe(me, target, enemies_melee, use_berserk, use_convoke, use_fren
         end
     end
 
-    --Primal Wrath if learned and needs refreshing (pandemic) and combo_points>=5 and distance<=10
+    --Primal Wrath if learned and any nearby enemy needs Rip (pandemic) and combo_points>=5 and distance<=15
     --Prefer Primal Wrath over Rip in AoE since it applies Rip to all nearby enemies
-    if has_primal_wrath and needs_rip(target) and combo_points >= 5 and target_distance <= 10 then
+    if has_primal_wrath and rip_needed_any and combo_points >= 5 and target_distance <= 15 then
         if energy >= ENERGY_COST_PRIMAL_WRATH and SPELLS.PRIMAL_WRATH:cast_safe(target, "Primal Wrath (AoE)") then
             return true
         end
@@ -510,15 +559,8 @@ local function aoe(me, target, enemies_melee, use_berserk, use_convoke, use_fren
     end
 
     --Swipe if distance<=8 and active_enemies>3 (main builder in aoe)
-    if target_distance <= 8 and active_enemies >= 2 and combo_points < 5 then
+    if target_distance <= 15 and active_enemies >= 2 and combo_points < 5 then
         if (has_clearcasting_feral or energy >= ENERGY_COST_SWIPE) and SPELLS.SWIPE:cast_safe(target, "Swipe (AoE)") then
-            return true
-        end
-    end
-
-    --Moonfire if talent lunar_inspiration and distance>15
-    if has_lunar_inspiration and target_distance > 15 then
-        if SPELLS.MOONFIRE:cast_safe(target, "Moonfire (Range)") then
             return true
         end
     end
@@ -614,11 +656,22 @@ core.register_on_update_callback(function()
         return
     end
 
-    --Get enemies within melee range
-    local enemies_melee = me:get_enemies_in_melee_range(8)
+    --Compute toggles/talents once per update (used across multiple target iterations)
+    local use_berserk = menu.BERSERK_KEYBIND:get_toggle_state()
+    local use_convoke = menu.CONVOKE_KEYBIND:get_toggle_state()
+    local use_frenzy = menu.FERAL_FRENZY_KEYBIND:get_toggle_state()
+    local has_lunar_inspiration = SPELLS.LUNAR_INSPIRATION:is_learned()
+    local has_frantic_frenzy = SPELLS.FRANTIC_FRENZY:is_learned()
+    local has_primal_wrath = SPELLS.PRIMAL_WRATH:is_learned()
 
-    --Check if we are in an AoE scenario
-    local is_aoe = #enemies_melee > 1
+    --Enemy counts: Primal Wrath is 15y, so treat multi-target within 15y as AoE when learned.
+    local enemies_melee = me:get_enemies_in_melee_range(10)
+    local enemies_primal_wrath_range = enemies_melee
+    if has_primal_wrath then
+        enemies_primal_wrath_range = me:get_enemies_in_melee_range(15)
+    end
+
+    local is_aoe = #enemies_primal_wrath_range > 1
 
     --Execute our defensives
     if defensives(me) then
@@ -628,20 +681,21 @@ core.register_on_update_callback(function()
     --Get target selector targets
     local targets = izi.get_ts_targets()
 
-    --Compute toggles/talents once per update (used across multiple target iterations)
-    local use_berserk = menu.BERSERK_KEYBIND:get_toggle_state()
-    local use_convoke = menu.CONVOKE_KEYBIND:get_toggle_state()
-    local use_frenzy = menu.FERAL_FRENZY_KEYBIND:get_toggle_state()
-    local has_lunar_inspiration = SPELLS.LUNAR_INSPIRATION:is_learned()
-    local has_frantic_frenzy = SPELLS.FRANTIC_FRENZY:is_learned()
-    local has_primal_wrath = SPELLS.PRIMAL_WRATH:is_learned()
-
     --Iterate over targets and run rotation logic
     for i = 1, #targets do
         local target = targets[i]
 
         --Check if the target is valid otherwise skip it
         if not (target and target.is_valid and target:is_valid()) then
+            goto continue
+        end
+
+        --Skip dead or not-visible targets (helps avoid odd TS selections that can never be hit)
+        if target.is_dead and target:is_dead() then
+            goto continue
+        end
+
+        if target.is_visible and (not target:is_visible()) then
             goto continue
         end
 
@@ -658,7 +712,7 @@ core.register_on_update_callback(function()
         --Damage rotation
         if is_aoe then
             --If we are in aoe lets call our AoE handler
-            if aoe(me, target, enemies_melee, use_berserk, use_convoke, use_frenzy, has_lunar_inspiration, has_frantic_frenzy, has_primal_wrath) then
+            if aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_berserk, use_convoke, use_frenzy, has_lunar_inspiration, has_frantic_frenzy, has_primal_wrath) then
                 return
             end
         else
