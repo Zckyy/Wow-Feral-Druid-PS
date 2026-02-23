@@ -243,13 +243,13 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
             return false
         end
 
-        if use_berserk and berserk_valid and SPELLS.BERSERK:cooldown_up() then
+        if use_berserk and berserk_valid and SPELLS.BERSERK:cooldown_up() and target_distance <= 6 then
             if SPELLS.BERSERK:cast_safe(nil, "Berserk (Pre-Rip)") then
                 return true
             end
         end
 
-        if tigers_fury_ready and (not has_tigers_fury) then
+        if tigers_fury_ready and (not has_tigers_fury) and target_distance <= 6 then
             if SPELLS.TIGERS_FURY:cast_safe(nil, "Tiger's Fury (Pre-Rip)") then
                 return true
             end
@@ -259,7 +259,7 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
             return true
         end
 
-        if use_convoke and convoke_valid and SPELLS.CONVOKE_THE_SPIRITS:cooldown_up() then
+        if use_convoke and convoke_valid and SPELLS.CONVOKE_THE_SPIRITS:cooldown_up() and target_distance <= 6 then
             if SPELLS.CONVOKE_THE_SPIRITS:cast_safe(nil, "Convoke (Post-Rip)") then
                 return true
             end
@@ -270,19 +270,19 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
 
     --Cooldowns: use on cooldown (no manual syncing/holding).
     --Tiger's Fury is used immediately when available (cannot be refreshed while buff is active).
-    if tigers_fury_ready and (not has_tigers_fury) then
+    if tigers_fury_ready and (not has_tigers_fury) and target_distance <= 6 then
         if SPELLS.TIGERS_FURY:cast_safe(nil, "Tiger's Fury") then
             return true
         end
     end
 
     --Berserk - use immediately when ready (only if keybind is enabled)
-    if use_berserk and berserk_valid and SPELLS.BERSERK:cooldown_up() and SPELLS.BERSERK:cast_safe(nil, "Berserk") then
+    if use_berserk and berserk_valid and SPELLS.BERSERK:cooldown_up() and target_distance <= 6 and SPELLS.BERSERK:cast_safe(nil, "Berserk") then
         return true
     end
 
     --Convoke the Spirits - use immediately when ready (only if keybind is enabled)
-    if use_convoke and convoke_valid and SPELLS.CONVOKE_THE_SPIRITS:cooldown_up() and me:has_buff(BUFFS.TIGERS_FURY) then
+    if use_convoke and convoke_valid and SPELLS.CONVOKE_THE_SPIRITS:cooldown_up() and me:has_buff(BUFFS.TIGERS_FURY) and target_distance <= 6 then
         --Convoke awards combo points rapidly; avoid entering Convoke while capped.
         if combo_points >= 3 then
             if me:has_buff(BUFFS.APEX_PREDATORS_CRAVING) and SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ferocious Bite (Pre-Convoke/Apex)") then
@@ -440,19 +440,19 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
 
     --Cooldowns: use on cooldown (no manual syncing/holding).
     --Tiger's Fury is used immediately when available (cannot be refreshed while buff is active).
-    if tigers_fury_ready and (not has_tigers_fury) and me:is_in_combat() then
+    if tigers_fury_ready and (not has_tigers_fury) and me:is_in_combat() and target_distance <= 6 then
         if SPELLS.TIGERS_FURY:cast_safe(nil, "Tiger's Fury") then
             return true
         end
     end
 
     --Berserk - use immediately when ready (only if keybind is enabled)
-    if use_berserk and berserk_valid and SPELLS.BERSERK:cast_safe(nil, "Berserk") then
+    if use_berserk and berserk_valid and target_distance <= 6 and SPELLS.BERSERK:cast_safe(nil, "Berserk") then
         return true
     end
 
     --Convoke the Spirits - use immediately when ready (only if keybind is enabled)
-    if use_convoke and convoke_valid then
+    if use_convoke and convoke_valid and target_distance <= 6 then
         --Convoke awards combo points rapidly; avoid entering Convoke while capped.
         if combo_points == 5 then
             if me:has_buff(BUFFS.APEX_PREDATORS_CRAVING) and SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ferocious Bite (Pre-Convoke/Apex)") then
@@ -576,7 +576,8 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
 
     --Swipe if distance<=8 and active_enemies>3 (main builder in aoe)
     if target_distance <= 15 and active_enemies >= 2 and combo_points < 5 then
-        if (has_clearcasting_feral or energy >= ENERGY_COST_SWIPE) and SPELLS.SWIPE:cast(target, "Swipe (AoE)") then
+        local combo_points_now = me:get_power(enums.power_type.COMBOPOINTS)
+        if combo_points_now < 5 and (has_clearcasting_feral or energy >= ENERGY_COST_SWIPE) and SPELLS.SWIPE:cast_safe(target, "Swipe (AoE)") then
             return true
         end
     end
