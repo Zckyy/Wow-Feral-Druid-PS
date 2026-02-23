@@ -214,17 +214,6 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
     local target_distance = me:distance_to(target)
     local has_clearcasting_feral = me:has_buff(BUFFS.CLEARCASTING_FERAL)
 
-    -- Range gate:
-    -- Many melee abilities (Rake/Shred/Rip/Bite) will attempt to enable auto-attack even if the cast fails.
-    -- If the target selector returns a valid target outside melee, avoid attempting melee spells.
-    if target_distance > 6 then
-        if has_lunar_inspiration and target_distance <= 40 then
-            local moonfire_ok = SPELLS.MOONFIRE:cast_safe(target, "Moonfire (Range)")
-            return moonfire_ok == true
-        end
-        return false
-    end
-
     --Check Tiger's Fury status for cooldown syncing
     local has_tigers_fury = me:has_buff(BUFFS.TIGERS_FURY)
     local tigers_fury_ready = SPELLS.TIGERS_FURY:cooldown_up()
@@ -235,7 +224,7 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
     local feral_frenzy_valid = menu.validate_feral_frenzy(ttd)
 
     --Rake if prowl buff is up
-    if me:has_buff(ID_PROWL) and target_distance <= 6 then
+    if me:has_buff(ID_PROWL) then
         if energy >= ENERGY_COST_RAKE and SPELLS.RAKE:cast_safe(target, "Rake (Prowl)") then
             return true
         end
@@ -243,7 +232,7 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
 
     --Cooldowns: use on cooldown (no manual syncing/holding).
     --Tiger's Fury is used immediately when available (cannot be refreshed while buff is active).
-    if target_distance <= 6 and tigers_fury_ready and (not has_tigers_fury) then
+    if tigers_fury_ready and (not has_tigers_fury) then
         if SPELLS.TIGERS_FURY:cast_safe(nil, "Tiger's Fury") then
             return true
         end
@@ -255,7 +244,7 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
     end
 
     --Convoke the Spirits - use immediately when ready (only if keybind is enabled)
-    if use_convoke and convoke_valid and SPELLS.CONVOKE_THE_SPIRITS:cooldown_up() and me:has_buff(BUFFS.TIGERS_FURY) and target_distance <= 6 then
+    if use_convoke and convoke_valid and SPELLS.CONVOKE_THE_SPIRITS:cooldown_up() and me:has_buff(BUFFS.TIGERS_FURY) then
         --Convoke awards combo points rapidly; avoid entering Convoke while capped.
         if combo_points == 5 then
             if me:has_buff(BUFFS.APEX_PREDATORS_CRAVING) and SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ferocious Bite (Pre-Convoke/Apex)") then
@@ -298,14 +287,14 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
     end
 
     --Ferocious Bite if apex_predators_craving buff is up
-    if me:has_buff(BUFFS.APEX_PREDATORS_CRAVING) and target_distance <= 6 then
+    if me:has_buff(BUFFS.APEX_PREDATORS_CRAVING) then
         if SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ferocious Bite (Apex)") then
             return true
         end
     end
 
     --Feral Frenzy if combo_points<=1 and Tiger's Fury buff is up (only if Frantic Frenzy not learned and keybind enabled)
-    if use_frenzy and energy >= ENERGY_COST_FERAL_OR_FRANTIC_FRENZY and not has_frantic_frenzy and feral_frenzy_valid and combo_points <= 1 and has_tigers_fury and target_distance <= 6 then
+    if use_frenzy and energy >= ENERGY_COST_FERAL_OR_FRANTIC_FRENZY and not has_frantic_frenzy and feral_frenzy_valid and combo_points <= 1 and has_tigers_fury then
         if SPELLS.FERAL_FRENZY:cast_safe(target, "Feral Frenzy (TF)") then
             last_feral_frenzy_cast_ms = game_time_ms
             return true
@@ -313,7 +302,7 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
     end
 
     --Feral Frenzy if combo_points<=1 and Tiger's Fury not ready (only if Frantic Frenzy not learned and keybind enabled)
-    if use_frenzy and energy >= ENERGY_COST_FERAL_OR_FRANTIC_FRENZY and feral_frenzy_valid and not has_frantic_frenzy and combo_points <= 1 and not tigers_fury_ready and target_distance <= 6 then
+    if use_frenzy and energy >= ENERGY_COST_FERAL_OR_FRANTIC_FRENZY and feral_frenzy_valid and not has_frantic_frenzy and combo_points <= 1 and not tigers_fury_ready then
         if SPELLS.FERAL_FRENZY:cast_safe(target, "Feral Frenzy") then
             last_feral_frenzy_cast_ms = game_time_ms
             return true
@@ -321,7 +310,7 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
     end
 
     --Frantic Frenzy if combo_points<=1 and distance<=8 and Tiger's Fury buff is up
-    if use_frenzy and energy >= ENERGY_COST_FERAL_OR_FRANTIC_FRENZY and has_frantic_frenzy and combo_points <= 1 and target_distance <= 6 and has_tigers_fury and SPELLS.FRANTIC_FRENZY:cooldown_up() then
+    if use_frenzy and energy >= ENERGY_COST_FERAL_OR_FRANTIC_FRENZY and has_frantic_frenzy and combo_points <= 1 and has_tigers_fury and SPELLS.FRANTIC_FRENZY:cooldown_up() then
         if SPELLS.FRANTIC_FRENZY:cast_safe(target, "Frantic Frenzy (TF)") then
             last_frantic_frenzy_cast_ms = game_time_ms
             return true
@@ -329,7 +318,7 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
     end
 
     --Frantic Frenzy if combo_points<=1 and distance<=8 and Tiger's Fury not ready
-    if use_frenzy and energy >= ENERGY_COST_FERAL_OR_FRANTIC_FRENZY and has_frantic_frenzy and combo_points <= 1 and target_distance <= 6 and not tigers_fury_ready and SPELLS.FRANTIC_FRENZY:cooldown_up() then
+    if use_frenzy and energy >= ENERGY_COST_FERAL_OR_FRANTIC_FRENZY and has_frantic_frenzy and combo_points <= 1 and not tigers_fury_ready and SPELLS.FRANTIC_FRENZY:cooldown_up() then
         if SPELLS.FRANTIC_FRENZY:cast_safe(target, "Frantic Frenzy") then
             last_frantic_frenzy_cast_ms = game_time_ms
             return true
@@ -342,7 +331,7 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
     end
 
     --Rake if needs refreshing (pandemic)
-    if needs_rake(target) and combo_points < 5 and target_distance <= 6 then
+    if needs_rake(target) and combo_points < 5 then
         if energy >= ENERGY_COST_RAKE and SPELLS.RAKE:cast_safe(target, "Rake") then
             return true
         end
@@ -393,35 +382,7 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
         rip_needed_any = any_enemy_needs_rip(enemies_primal_wrath_range)
     end
 
-    -- Range gate: avoid firing melee actions on out-of-range targets.
-    if target_distance > 8 then
-        -- Primal Wrath is a 15y AoE finisher, so allow spending CPs even when outside melee.
-        if has_primal_wrath and rip_needed_any and target_distance <= 20 and energy >= ENERGY_COST_PRIMAL_WRATH then
-            if SPELLS.PRIMAL_WRATH:cast(target, "Primal Wrath (15y)") then
-                return true
-            end
-        end
-
-        -- Swipe is our main AoE builder, and it has a large radius (15y), so allow using Swipe on targets up to 8y even in AoE.
-        if target_distance <= 15 and active_enemies >= 2 and combo_points < 5 then
-            if (has_clearcasting_feral or energy >= ENERGY_COST_SWIPE) and SPELLS.SWIPE:cast(target, "Swipe (AoE Range)") then
-                return true
-            end
-        end
-
-        if has_lunar_inspiration and target_distance <= 40 then
-            local moonfire_ok = SPELLS.MOONFIRE:cast_safe(target, "Moonfire (Range)")
-            return moonfire_ok == true
-        end
-        return false
-    end
-
-    --Range-gate AoE builders: if we still need to apply/refresh Rake.
-    --do not use Swipe (8y) to start combat while we're outside Rake range (~5y).
-    --This ensures we open with Rake for the stun/bonus damage.
-    if needs_rake(target) and target_distance > 5 then
-        return false
-    end
+    -- Intentionally no general range gate here (except for Swipe/Primal Wrath below).
 
     --Check for cooldown usage validity
     local berserk_valid = menu.validate_berserk_aoe(ttd)
@@ -441,7 +402,7 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
 
     --Cooldowns: use on cooldown (no manual syncing/holding).
     --Tiger's Fury is used immediately when available (cannot be refreshed while buff is active).
-    if target_distance <= 8 and tigers_fury_ready and (not has_tigers_fury) then
+    if tigers_fury_ready and (not has_tigers_fury) and me:is_in_combat() then
         if SPELLS.TIGERS_FURY:cast_safe(nil, "Tiger's Fury") then
             return true
         end
@@ -453,7 +414,7 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
     end
 
     --Convoke the Spirits - use immediately when ready (only if keybind is enabled)
-    if use_convoke and convoke_valid and target_distance <= 6 then
+    if use_convoke and convoke_valid then
         --Convoke awards combo points rapidly; avoid entering Convoke while capped.
         if combo_points == 5 then
             if me:has_buff(BUFFS.APEX_PREDATORS_CRAVING) and SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ferocious Bite (Pre-Convoke/Apex)") then
@@ -481,14 +442,15 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
 
     --Ravage proc: spend CPs with Ferocious Bite as soon as possible (even at 25 energy).
     --This intentionally overrides Primal Wrath/Rip maintenance while the proc is active.
-    if has_ravage_proc and combo_points >= 5 and target_distance <= 6 and energy >= ENERGY_COST_FEROCIOUS_BITE then
-        if SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ravage (AoE)") then
+    if has_ravage_proc and combo_points >= 5 and energy >= ENERGY_COST_FEROCIOUS_BITE then
+        izi.print("Ravage proc active - spending with Ferocious Bite")
+        if SPELLS.FEROCIOUS_BITE:cast(target, "Ravage (AoE)") then
             return true
         end
     end
 
     --Chomp if energy < 30% or within 2 seconds of dropping below 30%
-    if is_chomp_available() and target_distance <= 8 then
+    if is_chomp_available() then
         if SPELLS.CHOMP:cast_safe(target, "Chomp") then
             return true
         end
@@ -510,14 +472,14 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
     end
 
     --Ferocious Bite if combo_points>=5
-    if combo_points >= 5 and energy >= ENERGY_THRESHOLD_FEROCIOUS_BITE and target_distance <= 6 then
+    if combo_points >= 5 and energy >= ENERGY_THRESHOLD_FEROCIOUS_BITE then
         if SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ferocious Bite (5 CP)") then
             return true
         end
     end
 
     --Ferocious Bite if apex_predators_craving buff is up
-    if me:has_buff(BUFFS.APEX_PREDATORS_CRAVING) and target_distance <= 8 then
+    if me:has_buff(BUFFS.APEX_PREDATORS_CRAVING) then
         if SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ferocious Bite (Apex)") then
             return true
         end
@@ -540,7 +502,7 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
     end
 
     --Frantic Frenzy if combo_points<=1 and distance<=8 and Tiger's Fury buff is up
-    if use_frenzy and energy >= ENERGY_COST_FERAL_OR_FRANTIC_FRENZY and combo_points <= 1 and target_distance <= 6 and has_tigers_fury and SPELLS.FRANTIC_FRENZY:cooldown_up() then
+    if use_frenzy and energy >= ENERGY_COST_FERAL_OR_FRANTIC_FRENZY and combo_points <= 1 and has_tigers_fury and SPELLS.FRANTIC_FRENZY:cooldown_up() then
         if SPELLS.FRANTIC_FRENZY:cast_safe(target, "Frantic Frenzy (TF)") then
             last_frantic_frenzy_cast_ms = game_time_ms
             return true
@@ -548,7 +510,7 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
     end
 
     --Frantic Frenzy if combo_points<=1 and distance<=8 and Tiger's Fury not ready
-    if use_frenzy and energy >= ENERGY_COST_FERAL_OR_FRANTIC_FRENZY and combo_points <= 1 and target_distance <= 6 and not tigers_fury_ready and SPELLS.FRANTIC_FRENZY:cooldown_up() then
+    if use_frenzy and energy >= ENERGY_COST_FERAL_OR_FRANTIC_FRENZY and combo_points <= 1 and not tigers_fury_ready and SPELLS.FRANTIC_FRENZY:cooldown_up() then
         if SPELLS.FRANTIC_FRENZY:cast_safe(target, "Frantic Frenzy") then
             last_frantic_frenzy_cast_ms = game_time_ms
             return true
@@ -561,7 +523,7 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
     end
 
     --Rake if needs refreshing (pandemic)
-    if needs_rake(target) and target_distance <= 6 then
+    if needs_rake(target) then
         if energy >= ENERGY_COST_RAKE and SPELLS.RAKE:cast_safe(target, "Rake") then
             return true
         end
