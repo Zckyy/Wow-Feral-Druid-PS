@@ -297,7 +297,7 @@ local function single_target(me, target, use_berserk, use_convoke, use_frenzy, h
     end
 
     --Ferocious Bite if apex_predators_craving buff is up
-    if me:has_buff(BUFFS.APEX_PREDATORS_CRAVING) then
+    if me:has_buff(BUFFS.APEX_PREDATORS_CRAVING) and target_distance <= 6 then
         if SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ferocious Bite (Apex)") then
             return true
         end
@@ -392,14 +392,14 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
     if target_distance > 8 then
         -- Primal Wrath is a 15y AoE finisher, so allow spending CPs even when outside melee.
         if has_primal_wrath and rip_needed_any and target_distance <= 20 and energy >= ENERGY_COST_PRIMAL_WRATH then
-            if SPELLS.PRIMAL_WRATH:cast_safe(target, "Primal Wrath (15y)") then
+            if SPELLS.PRIMAL_WRATH:cast(target, "Primal Wrath (15y)") then
                 return true
             end
         end
 
         -- Swipe is our main AoE builder, and it has a large radius (15y), so allow using Swipe on targets up to 8y even in AoE.
         if target_distance <= 15 and active_enemies >= 2 and combo_points < 5 then
-            if (has_clearcasting_feral or energy >= ENERGY_COST_SWIPE) and SPELLS.SWIPE:cast_safe(target, "Swipe (AoE Range)") then
+            if (has_clearcasting_feral or energy >= ENERGY_COST_SWIPE) and SPELLS.SWIPE:cast(target, "Swipe (AoE Range)") then
                 return true
             end
         end
@@ -448,7 +448,7 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
     end
 
     --Convoke the Spirits - use immediately when ready (only if keybind is enabled)
-    if use_convoke and convoke_valid and target_distance <= 5 then
+    if use_convoke and convoke_valid and target_distance <= 6 then
         --Convoke awards combo points rapidly; avoid entering Convoke while capped.
         if combo_points == 5 then
             if me:has_buff(BUFFS.APEX_PREDATORS_CRAVING) and SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ferocious Bite (Pre-Convoke/Apex)") then
@@ -456,7 +456,7 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
             end
 
             --Prefer Primal Wrath over Rip in AoE.
-            if has_primal_wrath and rip_needed_any and target_distance <= 15 and energy >= ENERGY_COST_PRIMAL_WRATH and SPELLS.PRIMAL_WRATH:cast_safe(target, "Primal Wrath (Pre-Convoke)") then
+            if has_primal_wrath and rip_needed_any and target_distance <= 15 and energy >= ENERGY_COST_PRIMAL_WRATH and SPELLS.PRIMAL_WRATH:cast(target, "Primal Wrath (Pre-Convoke)") then
                 return true
             end
 
@@ -484,7 +484,7 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
     --Primal Wrath if learned and any nearby enemy needs Rip (pandemic) and combo_points>=5 and distance<=15
     --Prefer Primal Wrath over Rip in AoE since it applies Rip to all nearby enemies
     if has_primal_wrath and rip_needed_any and combo_points >= 5 and target_distance <= 15 then
-        if energy >= ENERGY_COST_PRIMAL_WRATH and SPELLS.PRIMAL_WRATH:cast_safe(target, "Primal Wrath (AoE)") then
+        if energy >= ENERGY_COST_PRIMAL_WRATH and SPELLS.PRIMAL_WRATH:cast(target, "Primal Wrath (AoE)") then
             return true
         end
     end
@@ -497,14 +497,14 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
     end
 
     --Ferocious Bite if combo_points>=5
-    if combo_points >= 5 and energy >= ENERGY_THRESHOLD_FEROCIOUS_BITE then
+    if combo_points >= 5 and energy >= ENERGY_THRESHOLD_FEROCIOUS_BITE and target_distance <= 6 then
         if SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ferocious Bite (5 CP)") then
             return true
         end
     end
 
     --Ferocious Bite if apex_predators_craving buff is up
-    if me:has_buff(BUFFS.APEX_PREDATORS_CRAVING) and target_distance <= 6 then
+    if me:has_buff(BUFFS.APEX_PREDATORS_CRAVING) and target_distance <= 8 then
         if SPELLS.FEROCIOUS_BITE:cast_safe(target, "Ferocious Bite (Apex)") then
             return true
         end
@@ -563,7 +563,7 @@ local function aoe(me, target, enemies_melee, enemies_primal_wrath_range, use_be
 
     --Swipe if distance<=8 and active_enemies>3 (main builder in aoe)
     if target_distance <= 15 and active_enemies >= 2 and combo_points < 5 then
-        if (has_clearcasting_feral or energy >= ENERGY_COST_SWIPE) and SPELLS.SWIPE:cast_safe(target, "Swipe (AoE)") then
+        if (has_clearcasting_feral or energy >= ENERGY_COST_SWIPE) and SPELLS.SWIPE:cast(target, "Swipe (AoE)") then
             return true
         end
     end
@@ -668,10 +668,10 @@ core.register_on_update_callback(function()
     local has_primal_wrath = SPELLS.PRIMAL_WRATH:is_learned()
 
     --Enemy counts: Primal Wrath is 15y, so treat multi-target within 15y as AoE when learned.
-    local enemies_melee = izi.enemies(15)
+    local enemies_melee = izi.enemies(20)
     local enemies_primal_wrath_range = enemies_melee
     if has_primal_wrath then
-        enemies_primal_wrath_range = me:get_enemies_in_melee_range(15)
+        enemies_primal_wrath_range = me:get_enemies_in_melee_range(20)
     end
 
     local is_aoe = #enemies_primal_wrath_range > 1
